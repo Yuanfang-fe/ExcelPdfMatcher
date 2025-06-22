@@ -1,5 +1,0 @@
-('/usr/local/lib/python3.7/site-packages/cssselect-1.0.3-py3.7.egg',
- None,
- {'*.py', '*.cpython-37m-darwin.so', '*.abi3.so', '*.so', '*.pyc', 'EGG-INFO'},
- 'DATA',
- [])
