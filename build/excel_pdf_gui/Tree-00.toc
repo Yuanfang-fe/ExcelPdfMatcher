@@ -1,0 +1,5 @@
+('/usr/local/lib/python3.7/site-packages/cssselect-1.0.3-py3.7.egg',
+ None,
+ {'*.cpython-37m-darwin.so', '*.so', '*.py', 'EGG-INFO', '*.abi3.so', '*.pyc'},
+ 'DATA',
+ [])

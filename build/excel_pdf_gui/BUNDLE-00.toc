@@ -1,0 +1,3 @@
+([('excel_pdf_gui',
+   '/Users/zhengj/Downloads/compare/dist/excel_pdf_gui',
+   'EXECUTABLE')],)
