@@ -25,12 +25,12 @@ jobs:
           pip install pyinstaller==5.13.0
 
       - name: Build EXE with PyInstaller
+        shell: cmd
         run: |
           pyinstaller --noconfirm --clean ^
             --onefile ^
             --windowed ^
             --icon=excel_pdf_matcher_icon.ico ^
-            --add-data "%USERPROFILE%\\AppData\\Local\\Programs\\Common Files\\microsoft shared\\OFFICE16;." ^
             excel_pdf_gui.py
 
       - name: Upload EXE artifact
