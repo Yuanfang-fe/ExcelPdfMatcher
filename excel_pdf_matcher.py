@@ -40,9 +40,10 @@ def extract_part_rows_from_excel(excel_path, field_names):
     """
     从 Excel 第二张表中提取多个字段的非空值集合
     返回 dict：字段名 -> 清洗后的值列表
+    自动判断 .xls 使用 xlrd 引擎
     """
     try:
-        xl = pd.ExcelFile(excel_path)
+        xl = pd.ExcelFile(excel_path, engine='xlrd' if excel_path.endswith('.xls') else None)
         df = xl.parse(xl.sheet_names[1], header=12)  # 第二张表，表头第13行
 
         field_values = {}
@@ -52,6 +53,7 @@ def extract_part_rows_from_excel(excel_path, field_names):
         return field_values
     except Exception as e:
         raise ValueError(f"读取 Excel 时出错：{e}")
+
 
 def extract_text_from_pdf(pdf_path):
     """提取 PDF 文本"""
@@ -64,9 +66,11 @@ def extract_text_from_pdf(pdf_path):
     except Exception as e:
         raise ValueError(f"读取 PDF 文件失败：{e}")
 
+
 def match_part_values(values, pdf_text):
     """返回匹配上的列表"""
     return [v for v in values if v in pdf_text]
+
 
 def save_results_to_excel_sheets(matched_dict, output_file):
     """按字段保存为多个 Sheet"""
@@ -75,6 +79,7 @@ def save_results_to_excel_sheets(matched_dict, output_file):
             df = pd.DataFrame({f'Matched from {field}': matched_values})
             df.to_excel(writer, sheet_name=field[:31], index=False)
     print(f"📁 匹配结果已保存为: {output_file}")
+
 
 def compare_excel_pdf(excel_path, pdf_path, field_input="Part No,NW(KG)", output_path=None):
     """
