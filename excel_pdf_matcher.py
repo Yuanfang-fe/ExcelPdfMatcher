@@ -9,23 +9,23 @@ def clean_part(value, is_weight_field=False):
     """
     清理字段值，必要时拼接单位（如 KG）。
     - 去除空格、异常破折号
-    - 对数值型处理：如 1.0 → 1，再加 KG
+    - 对数值型处理：如 1.00 → 1，再加 KG
     """
     value = str(value).strip()
 
     # 尝试转换为数字
     if is_weight_field:
         try:
-            number = float(value)
+            number = round(float(value), 2)
             if number.is_integer():
-                value = f"{int(number)}KG"
+                value = f"{int(number)}KG N. W."
             else:
-                value = f"{number}KG"
+                value = f"{number}KG N. W."
         except ValueError:
             # 若非数字，保留原样后加KG
-            value = f"{value}KG"
+            value = f"{value}KG N. W."
 
-    return value.replace(" ", "").replace("- ", "-").replace(" -", "-").strip()
+    return value.replace("- ", "-").replace(" -", "-").strip()
 
 
 def extract_field_values(df, field):
@@ -56,20 +56,29 @@ def extract_part_rows_from_excel(excel_path, field_names):
 
 
 def extract_text_from_pdf(pdf_path):
-    """提取 PDF 文本"""
+    """提取 PDF 文本并清洗空格错误"""
     try:
         text = ""
         with fitz.open(pdf_path) as doc:
             for page in doc:
                 text += page.get_text()
-        return text.replace("- ", "-").replace(" -", "-")
+        # 清洗破折号格式
+        text = text.replace("- ", "-").replace(" -", "-")
+        # 匹配如 17. 13KG、226. 38KG 形式，清除中间空格
+        text = re.sub(r'(\d+)\.\s+(\d+)(?=\s*KG)', r'\1.\2', text, flags=re.IGNORECASE)
+
+        return text
     except Exception as e:
         raise ValueError(f"读取 PDF 文件失败：{e}")
 
 
 def match_part_values(values, pdf_text):
-    """返回匹配上的列表"""
-    return [v for v in values if v in pdf_text]
+    """返回每个值出现一次的匹配列表，按其在 PDF 中的实际顺序排列（重复值多次输出）"""
+    matched = []
+    pattern = '|'.join(re.escape(v) for v in values)
+    for match in re.finditer(pattern, pdf_text):
+        matched.append(match.group())
+    return matched
 
 
 def save_results_to_excel_sheets(matched_dict, output_file):
@@ -97,6 +106,7 @@ def compare_excel_pdf(excel_path, pdf_path, field_input="Part No,NW(KG)", output
 
     print(f"📄 读取 PDF 内容: {pdf_path}")
     pdf_text = extract_text_from_pdf(pdf_path)
+    print(f"📄 清洗后的 PDF 文本: {pdf_text}")
 
     matched_dict = {}
     for field, values in field_values_dict.items():
