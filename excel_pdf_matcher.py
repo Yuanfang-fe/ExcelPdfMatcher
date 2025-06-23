@@ -3,33 +3,58 @@
 import pandas as pd
 import fitz  # PyMuPDF
 import os
+import re
 
-
-def clean_part_number(part):
+def clean_part(value, is_weight_field=False):
     """
-    清理和标准化 Part No：去除空格，连接破折号。
+    清理字段值，必要时拼接单位（如 KG）。
+    - 去除空格、异常破折号
+    - 对数值型处理：如 1.0 → 1，再加 KG
     """
-    return part.replace(" ", "").replace("- ", "-").replace(" -", "-").strip()
+    value = str(value).strip()
+
+    # 尝试转换为数字
+    if is_weight_field:
+        try:
+            number = float(value)
+            if number.is_integer():
+                value = f"{int(number)}KG"
+            else:
+                value = f"{number}KG"
+        except ValueError:
+            # 若非数字，保留原样后加KG
+            value = f"{value}KG"
+
+    return value.replace(" ", "").replace("- ", "-").replace(" -", "-").strip()
 
 
-def extract_part_numbers_from_excel(excel_path, field_name="Part No"):
+def extract_field_values(df, field):
+    """提取某一列的非空清洗值，自动判断是否为重量字段"""
+    is_weight_field = "KG" in field.upper()  # 如 NW(KG)、GW(KG)
+    if field not in df.columns:
+        raise ValueError(f"Excel 中找不到列：{field}")
+    return list(set(df[field].dropna().apply(lambda v: clean_part(v, is_weight_field)).tolist()))
+
+
+def extract_part_rows_from_excel(excel_path, field_names):
     """
-    从 Excel 中提取指定字段（第 12 行作为表头）对应的 Part No。
+    从 Excel 第二张表中提取多个字段的非空值集合
+    返回 dict：字段名 -> 清洗后的值列表
     """
     try:
-        df = pd.read_excel(excel_path, header=11)  # header=11 表示第 12 行作为表头
-        if field_name not in df.columns:
-            raise ValueError(f"Excel 中找不到字段名：{field_name}")
-        part_numbers = df[field_name].dropna().astype(str).apply(clean_part_number).tolist()
-        return part_numbers
-    except Exception as e:
-        raise ValueError(f"读取 Excel 文件失败：{e}")
+        xl = pd.ExcelFile(excel_path)
+        df = xl.parse(xl.sheet_names[1], header=12)  # 第二张表，表头第13行
 
+        field_values = {}
+        for field in field_names:
+            values = extract_field_values(df, field)
+            field_values[field] = values
+        return field_values
+    except Exception as e:
+        raise ValueError(f"读取 Excel 时出错：{e}")
 
 def extract_text_from_pdf(pdf_path):
-    """
-    提取 PDF 中的文本内容，并清洗破折号格式。
-    """
+    """提取 PDF 文本"""
     try:
         text = ""
         with fitz.open(pdf_path) as doc:
@@ -39,44 +64,41 @@ def extract_text_from_pdf(pdf_path):
     except Exception as e:
         raise ValueError(f"读取 PDF 文件失败：{e}")
 
+def match_part_values(values, pdf_text):
+    """返回匹配上的列表"""
+    return [v for v in values if v in pdf_text]
 
-def match_part_numbers(excel_parts, pdf_text):
-    """
-    匹配 Excel 中的 Part No 是否出现在 PDF 文本中。
-    """
-    matched = [p for p in excel_parts if p in pdf_text]
-    return matched
+def save_results_to_excel_sheets(matched_dict, output_file):
+    """按字段保存为多个 Sheet"""
+    with pd.ExcelWriter(output_file) as writer:
+        for field, matched_values in matched_dict.items():
+            df = pd.DataFrame({f'Matched from {field}': matched_values})
+            df.to_excel(writer, sheet_name=field[:31], index=False)
+    print(f"📁 匹配结果已保存为: {output_file}")
 
+def compare_excel_pdf(excel_path, pdf_path, field_input="Part No,NW(KG)", output_path=None):
+    """
+    主流程入口：支持多列字段（逗号分隔），将结果输出为多个 Sheet
+    """
+    field_names = [f.strip() for f in re.split(r'[，,]', field_input.strip())]
 
-def save_matched_results(matched_parts, output_path):
-    """
-    保存匹配结果到 Excel 文件。
-    """
-    df = pd.DataFrame({'Matched Part No': matched_parts})
-    df.to_excel(output_path, index=False)
-
-
-def compare_excel_pdf(excel_path, pdf_path, field_name="Part No", output_path=None):
-    """
-    主函数：读取 Excel 和 PDF，进行 Part No 匹配，并保存结果。
-    如果未提供 output_path，将自动生成一个结果文件名。
-    """
     if not output_path:
         excel_name = os.path.splitext(os.path.basename(excel_path))[0]
         pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
-        output_path = f"{excel_name}_VS_{pdf_name}_匹配结果.xlsx"
+        output_path = f"{excel_name}_VS_{pdf_name}_字段分组匹配结果.xlsx"
 
-    print(f"📄 读取 Excel: {excel_path}")
-    excel_parts = extract_part_numbers_from_excel(excel_path, field_name)
+    print(f"📄 读取字段列：{field_names}")
+    field_values_dict = extract_part_rows_from_excel(excel_path, field_names)
 
-    print(f"📄 读取 PDF: {pdf_path}")
+    print(f"📄 读取 PDF 内容: {pdf_path}")
     pdf_text = extract_text_from_pdf(pdf_path)
 
-    print("🔍 开始匹配 Part No...")
-    matched_parts = match_part_numbers(excel_parts, pdf_text)
+    matched_dict = {}
+    for field, values in field_values_dict.items():
+        matched = match_part_values(values, pdf_text)
+        matched_dict[field] = matched
+        print(f"🔍 {field} 匹配到 {len(matched)} 条")
 
-    save_matched_results(matched_parts, output_path)
+    save_results_to_excel_sheets(matched_dict, output_path)
 
-    print(f"✅ 共匹配到 {len(matched_parts)} 个 Part No")
-    print(f"📁 结果已保存为: {output_path}")
     return output_path

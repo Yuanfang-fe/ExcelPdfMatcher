@@ -37,7 +37,7 @@ class CompareApp(QWidget):
         field_label.setFixedWidth(80)
         field_input = QLineEdit()
         field_input.setPlaceholderText("如：Part No")
-        field_input.setText("Part No")  # 默认值
+        field_input.setText("Part No,NW(KG)")  # 默认值
 
         field_layout.addWidget(field_label)
         field_layout.addWidget(field_input)
