@@ -1,32 +1,37 @@
-name: Build Windows EXE
+name: Build Windows EXE (Win7+ compatible)
 
 on:
   push:
-    branches: [ main ]  # 或者你使用的分支
-  workflow_dispatch:    # 也允许手动触发
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Set up Python 3.8
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.8'
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller==5.13.0
 
-      - name: Build EXE
+      - name: Build EXE with PyInstaller
         run: |
-          pyinstaller --onefile --windowed --icon=excel_pdf_matcher_icon.ico excel_pdf_gui.py
+          pyinstaller --noconfirm --clean ^
+            --onefile ^
+            --windowed ^
+            --icon=excel_pdf_matcher_icon.ico ^
+            --add-data "%USERPROFILE%\\AppData\\Local\\Programs\\Common Files\\microsoft shared\\OFFICE16;." ^
+            excel_pdf_gui.py
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
